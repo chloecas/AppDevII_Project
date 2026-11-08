@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "325430808566",
+    "project_id": "appdev2-cardvault",
+    "storage_bucket": "appdev2-cardvault.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:325430808566:android:b1f55624a21c5ed68681d7",
+        "android_client_info": {
+          "package_name": "com.example.team_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZaLUYDzJLnM1DsGJRlc5ooCAk5MH_YcE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

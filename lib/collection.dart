@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:team_project/app_drawer.dart';
 
 import 'carddex_api.dart';
 
@@ -45,6 +46,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
         title: const Text('My collection',
             style: TextStyle(fontWeight: FontWeight.w800)),
       ),
+      drawer: const AppDrawer(),
       body: FutureBuilder<List<CardItem>>(
         future: _collection,
         builder: (context, snapshot) {

@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 import 'collection.dart';
+import 'home_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() => runApp(const CardVaultApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+ runApp(const CardVaultApp());
+}
+
 
 const String appName = 'CardVault';
 
@@ -59,10 +71,44 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _logIn() {
-    // TODO: authenticate, then navigate to the collection screen.
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const CollectionScreen()));
+  Future<void> _logIn() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Please enter your email and password.');
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'invalid-email':
+          message = 'That email address is not valid.';
+          break;
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+          message = 'Incorrect email or password.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many attempts. Try again later.';
+          break;
+        default:
+          message = e.message ?? 'Login failed.';
+      }
+      _showMessage(message);
+    }
   }
 
   void _forgotPassword() {
@@ -71,6 +117,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _goToSignUp() {
     // TODO: Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen()));
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
