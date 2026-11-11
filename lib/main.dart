@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'collection.dart';
-import 'home_page.dart';
+import 'dashboard.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'registration.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -116,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _goToSignUp() {
-    // TODO: Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen()));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const Registration()));
   }
 
   void _showMessage(String message) {

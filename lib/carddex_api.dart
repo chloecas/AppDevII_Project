@@ -2,9 +2,6 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-// Optional free key from https://carddex.dev. Without one you get 30 req/min,
-// with one you get 100 req/min. Pass it at build time instead of hard-coding:
-//   flutter run --dart-define=CARDDEX_API_KEY=pk_live_xxx
 const String _apiKey = String.fromEnvironment('CARDDEX_API_KEY');
 
 class CardDexException implements Exception {
@@ -23,6 +20,7 @@ class CardItem {
     required this.id,
     required this.name,
     this.imageUrl,
+    this.largeImageUrl,
     this.value,
     this.setId,
   });
@@ -30,13 +28,16 @@ class CardItem {
   final String id;
   final String name;
   final String? imageUrl;
+  final String? largeImageUrl;
   final double? value;
   final String? setId;
 
   factory CardItem.fromJson(Map<String, dynamic> json) => CardItem(
     id: '${json['id']}',
     name: (json['name'] ?? 'Unknown card') as String,
-    imageUrl: _findImage(json['images'] ?? json['image']),
+    imageUrl: _imageFor(json),
+    largeImageUrl: _imageFor(json, large: true),
+
     value: _findValue(json['prices'] ?? json['price']),
     setId: json['set'] is Map
         ? '${(json['set'] as Map)['id']}'
@@ -105,7 +106,7 @@ class CardDexApi {
   }
 
   /// GET /v1/cards/{id}
-  Future<CardItem> getCard(String id) async {
+  Future<Object> getCard(String id) async {
     final body = await _get('/v1/cards/$id', {'include': 'images,prices'});
     final json = body is Map && body['data'] is Map ? body['data'] : body;
     return CardItem.fromJson(json as Map<String, dynamic>);
@@ -132,25 +133,18 @@ class CardDexApi {
   }
 }
 
-/// Finds the first usable image URL in whatever shape the API returns.
-String? _findImage(dynamic node) {
-  if (node is String) return node.startsWith('http') ? node : null;
-  if (node is Map) {
-    for (final key in ['small', 'large', 'url', 'image']) {
-      final found = _findImage(node[key]);
-      if (found != null) return found;
-    }
-    for (final value in node.values) {
-      final found = _findImage(value);
-      if (found != null) return found;
-    }
+String? _imageFor(Map<String, dynamic> json, {bool large = false}) {
+  final ptcg = json['ptcgio_id'];
+  if (ptcg is String && ptcg.contains('-')) {
+    final i = ptcg.indexOf('-');
+    final set = ptcg.substring(0, i);
+    final num = ptcg.substring(i + 1);
+    return 'https://images.pokemontcg.io/$set/${num}${large ? '_hires' : ''}.png';
   }
-  if (node is List) {
-    for (final value in node) {
-      final found = _findImage(value);
-      if (found != null) return found;
-    }
-  }
+
+  final direct = json['image_url'];
+  if (direct is String && direct.startsWith('http')) return direct;
+
   return null;
 }
 

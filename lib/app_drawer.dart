@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:team_project/main.dart';
-import 'home_page.dart';
+import 'dashboard.dart';
 import 'collection.dart';
 import 'main.dart';
 
