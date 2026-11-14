@@ -10,6 +10,8 @@ const _red = Color(0xFFD62828);
 const _cream = Color(0xFFFFF8E1);
 const _background = Color(0xFFFFF6CC);
 
+CardLogo logo = CardLogo();
+
 class Registration extends StatefulWidget {
   const Registration({Key? key}) : super(key: key);
 
@@ -40,17 +42,11 @@ class _RegistrationState extends State<Registration> {
                 Padding(
                   padding: const EdgeInsets.only(top: 20.0),
                   child: Center(
-                    child: Container(
-                      width: 200,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(40),
-                        border: Border.all(color: _teal),
-                      ),
-                      //child: ,
+
+                      child: logo,
                     ),
                   ),
-                ),
+
                 Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: TextFormField(

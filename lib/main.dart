@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(child: _CardLogo()),
+                  const Center(child: CardLogo()),
                   const SizedBox(height: 24),
                   Text(appName,
                       textAlign: TextAlign.center,
@@ -229,8 +229,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _CardLogo extends StatelessWidget {
-  const _CardLogo();
+class CardLogo extends StatelessWidget {
+  const CardLogo();
 
   @override
   Widget build(BuildContext context) {

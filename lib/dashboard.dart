@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,7 +36,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: _background,
         foregroundColor: _ink,
         elevation: 0,
-        title: Text('Home Page', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: Text('CardVault', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
 
       /// Nav Bar
@@ -112,6 +115,17 @@ class _BrowseViewState extends State<BrowseView> {
             ),
           ),
           const SizedBox(height: 16),
+
+          IconButton(
+            tooltip: 'Search',
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SearchPage()),
+            ),
+          ),
+
+          const SizedBox(height:16),
           _SectionHeader(
             'Browse by set',
             trailing: TextButton(
@@ -290,29 +304,43 @@ class _SetPageState extends State<SetPage> {
   }
 }
 
-class CardDetailPage extends StatelessWidget {
+// ───────────────────────── Card Details Page ─────────────────────────
+class CardDetailPage extends StatefulWidget {
   final CardItem card;
-
   const CardDetailPage({super.key, required this.card});
 
+  @override
+  State<CardDetailPage> createState() => _CardDetailPageState();
+}
+
+class _CardDetailPageState extends State<CardDetailPage> {
+  late CardItem _card = widget.card;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFull();
+  }
+
+  Future<void> _loadFull() async {
+    try {
+      final full = await _api.getCard(widget.card.id);
+      if (mounted) setState(() => _card = full);
+    } catch (e) {
+      debugPrint('getCard failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _addToCollection(BuildContext context) async {
-    // TODO: hook up Firestore here, e.g.
-     /*final uid = FirebaseAuth.instance.currentUser!.uid;
-     await FirebaseFirestore.instance
-         .collection('users').doc(uid)
-         .collection('collection').doc(card.id)
-         .set({
-           'cardId': card.id,
-           'quantity': FieldValue.increment(1),
-           'addedAt': FieldValue.serverTimestamp(),
-         }, SetOptions(merge: true));*/
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${card.name} added to your collection')),
-    );
+    // ...your existing code, using _card instead of card
   }
 
   @override
   Widget build(BuildContext context) {
+    final card = _card;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(title: Text(card.name)),
@@ -324,7 +352,9 @@ class CardDetailPage extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 360),
               child: Hero(
                 tag: 'card-${card.id}',
-                child: InteractiveViewer(child: _CardImage(url: card.largeImageUrl ?? card.imageUrl)),
+                child: InteractiveViewer(
+                  child: _CardImage(url: card.largeImageUrl ?? card.imageUrl),
+                ),
               ),
             ),
           ),
@@ -332,11 +362,35 @@ class CardDetailPage extends StatelessWidget {
           Text(card.name, style: textTheme.headlineSmall),
           if (card.value != null) ...[
             const SizedBox(height: 4),
-            Text(
-              'Market value: ${_money(card.value!)}',
-              style: textTheme.bodyMedium,
-            ),
+            Text('Market value: ${_money(card.value!)}',
+                style: textTheme.bodyMedium),
           ],
+          if (_loading) const LinearProgressIndicator(),
+
+          Text('HP: ${card.hp ?? '-'}'),
+          if (card.rarity != null && card.rarity != 'None')
+            Text('Rarity: ${card.rarity}'),
+
+          if (card.abilities.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Abilities', style: textTheme.titleMedium),
+            for (final ab in card.abilities)
+              Text('${ab.name}: ${ab.text ?? ''}'),
+          ],
+
+          if (card.attacks.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Attacks', style: textTheme.titleMedium),
+            for (final a in card.attacks)
+              Text('${a.name}  ${a.damage ?? ''}'),
+          ],
+
+          if (card.weaknesses.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Weakness: '
+                '${card.weaknesses.map((w) => '${w.type} ${w.value}').join(', ')}'),
+          ],
+
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: () => _addToCollection(context),
@@ -349,6 +403,7 @@ class CardDetailPage extends StatelessWidget {
   }
 }
 
+// ───────────────────────── Section Header formatting ─────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
@@ -411,6 +466,7 @@ class _AsyncList<T> extends StatelessWidget {
   }
 }
 
+// ───────────────────────── Card Tile for Lists ─────────────────────────
 class _CardTile extends StatelessWidget {
   final CardItem card;
   final double width;
@@ -456,6 +512,7 @@ class _CardTile extends StatelessWidget {
   }
 }
 
+// ───────────────────────── Set Tiles for lists ─────────────────────────
 class _SetTile extends StatelessWidget {
   final CardSet set;
   final VoidCallback onTap;
@@ -496,6 +553,7 @@ class _SetTile extends StatelessWidget {
   }
 }
 
+// ───────────────────────── Image formatting ─────────────────────────
 class _CardImage extends StatelessWidget {
   final String? url;
 
@@ -507,12 +565,13 @@ class _CardImage extends StatelessWidget {
       color: Colors.black12,
       child: const Center(child: Icon(Icons.image_not_supported)),
     );
-    if (url == null) {debugPrint('CardImage: no URL parsed for this card');
-    return Container(
-      color: Colors.black12,
-      child: const Center(child: Icon(Icons.hide_image)),
-    );
-  }
+    if (url == null) {
+      debugPrint('CardImage: no URL parsed for this card');
+      return Container(
+        color: Colors.black12,
+        child: const Center(child: Icon(Icons.hide_image)),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Image.network(
@@ -522,6 +581,180 @@ class _CardImage extends StatelessWidget {
             ? child
             : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         errorBuilder: (_, __, ___) => placeholder,
+      ),
+    );
+  }
+}
+
+// ───────────────────────── Search Page ─────────────────────────
+class SearchPage extends StatefulWidget {
+  const SearchPage({super.key});
+
+  @override
+  State<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<SearchPage> {
+  final _controller = TextEditingController();
+  Timer? _debounce;
+
+  List<CardSet> _allSets = [];
+  List<CardSet> _setResults = [];
+  List<CardItem> _cardResults = [];
+  bool _loading = false;
+  String? _error;
+  int _requestId = 0; // ignores stale responses
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSets();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSets() async {
+    try {
+      final sets = await _api.getSets();
+      if (mounted) setState(() => _allSets = sets);
+    } catch (e) {
+      debugPrint('getSets failed: $e');
+    }
+  }
+
+  void _onChanged(String text) {
+    _debounce?.cancel();
+    final q = text.trim();
+    if (q.length < 2) {
+      setState(() {
+        _setResults = [];
+        _cardResults = [];
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () => _search(q));
+  }
+
+  Future<void> _search(String q) async {
+    final id = ++_requestId;
+    final lower = q.toLowerCase();
+
+    // sets: local filter, instant
+    final sets = _allSets
+        .where((s) => s.name.toLowerCase().contains(lower))
+        .toList();
+    setState(() {
+      _setResults = sets;
+      _loading = true;
+      _error = null;
+    });
+
+    // cards: API call
+    try {
+      final cards = await _api.getCards(name: q, pageSize: 30);
+      if (!mounted || id != _requestId) return; // a newer search started
+      setState(() => _cardResults = cards);
+    } catch (e) {
+      if (!mounted || id != _requestId) return;
+      setState(() => _error = 'Search failed. Check your connection.');
+    } finally {
+      if (mounted && id == _requestId) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final hasQuery = _controller.text.trim().length >= 2;
+    final empty = hasQuery &&
+        !_loading &&
+        _error == null &&
+        _setResults.isEmpty &&
+        _cardResults.isEmpty;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: TextField(
+          controller: _controller,
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: 'Search cards or sets',
+            border: InputBorder.none,
+            suffixIcon: _controller.text.isEmpty
+                ? null
+                : IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _controller.clear();
+                _onChanged('');
+              },
+            ),
+          ),
+          onChanged: (t) {
+            setState(() {}); // refresh the clear button
+            _onChanged(t);
+          },
+          onSubmitted: (t) => _search(t.trim()),
+        ),
+      ),
+      body: ListView(
+        children: [
+          if (_loading) const LinearProgressIndicator(),
+          if (_error != null)
+            Padding(padding: const EdgeInsets.all(16), child: Text(_error!)),
+          if (empty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No results'),
+            ),
+
+          if (_setResults.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text('Sets', style: textTheme.titleMedium),
+            ),
+            for (final s in _setResults)
+              ListTile(
+                leading: const Icon(Icons.collections_bookmark),
+                title: Text(s.name),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SetPage(set: s)),
+                ),
+              ),
+          ],
+
+          if (_cardResults.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text('Cards', style: textTheme.titleMedium),
+            ),
+            for (final c in _cardResults)
+              ListTile(
+                leading: SizedBox(
+                  width: 40,
+                  child: _CardImage(url: c.imageUrl),
+                ),
+                title: Text(c.name),
+                subtitle: Text([
+                  if (c.setName != null) c.setName!,
+                  if (c.number != null) '#${c.number}',
+                ].join(' · ')),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CardDetailPage(card: c)),
+                ),
+              ),
+          ],
+        ],
       ),
     );
   }
