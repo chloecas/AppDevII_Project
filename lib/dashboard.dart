@@ -8,6 +8,7 @@ import 'package:team_project/app_drawer.dart';
 
 import 'carddex_api.dart';
 import 'collection.dart';
+import 'collections_crud.dart';
 
 // Palette shared with the login screen.
 const _ink = Color(0xFF14213D);
@@ -335,7 +336,19 @@ class _CardDetailPageState extends State<CardDetailPage> {
   }
 
   Future<void> _addToCollection(BuildContext context) async {
-    // ...your existing code, using _card instead of card
+    try {
+      await CollectionsCrud.add(_card.id, purchasePrice: _card.value);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_card.name} added to your collection')),
+      );
+    } catch (e) {
+      debugPrint('add failed: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not add the card. Try again.')),
+      );
+    }
   }
 
   @override

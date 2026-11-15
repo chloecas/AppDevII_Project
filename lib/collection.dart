@@ -1,3 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:team_project/app_drawer.dart';
 
@@ -14,8 +17,44 @@ final _api = CardDexApi();
 
 /// TODO: the API has no per-user collection. Store the IDs of the cards your
 /// user owns (local storage or your own backend), then load them with
-/// _api.getCard(id). Until then this shows the newest cards as sample data.
-Future<List<CardItem>> fetchCollection() => _api.getCards(pageSize: 24);
+/// _api.getCard(id).
+
+class OwnedCard {
+  OwnedCard({required this.card, required this.quantity, this.purchasePrice});
+
+  final CardItem card;          /// <- from the API
+  final int quantity;           /// <- from Firestore
+  final double? purchasePrice;  /// <- from Firestore
+
+  double? get totalValue =>
+      card.value == null ? null : card.value! * quantity;
+
+  double? get gain => (card.value == null || purchasePrice == null)
+      ? null
+      : (card.value! - purchasePrice!) * quantity;
+}
+
+
+Future<List<OwnedCard>> fetchCollection() async {
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final snap = await FirebaseFirestore.instance.collection('users').doc(uid).collection('cards').get();
+
+  final results = await Future.wait(snap.docs.map((doc) async {
+    try {
+      final data = doc.data();
+      final card = await _api.getCard(doc.id);
+      return OwnedCard(
+          card: card,
+          quantity: (data['quantity'] as num?)?.toInt() ?? 1,
+          purchasePrice: (data['purchasePrice'] as num?)?.toDouble(),
+      );
+    }
+    catch (_) {
+      return null;
+    }
+  }));
+  return results.whereType<OwnedCard>().toList();
+}
 
 String formatValue(double? value) =>
     value == null ? '\$--.--' : '\$${value.toStringAsFixed(2)}';
@@ -28,11 +67,26 @@ class CollectionScreen extends StatefulWidget {
 }
 
 class _CollectionScreenState extends State<CollectionScreen> {
-  late Future<List<CardItem>> _collection = fetchCollection();
+  late Future<List<OwnedCard>> _collection = fetchCollection();
 
   Future<void> _reload() async {
     setState(() => _collection = fetchCollection());
     await _collection;
+  }
+
+  Future<void> _addToCollection(String cardId, double purchasePrice) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('cards')
+        .doc(cardId);
+
+    await ref.set({
+      'quantity': FieldValue.increment(1),
+      'purchasePrice': purchasePrice,
+      'dateAdded': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   @override
@@ -43,11 +97,13 @@ class _CollectionScreenState extends State<CollectionScreen> {
         backgroundColor: _background,
         foregroundColor: _ink,
         elevation: 0,
-        title: const Text('My collection',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text(
+          'My collection',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
       drawer: const AppDrawer(),
-      body: FutureBuilder<List<CardItem>>(
+      body: FutureBuilder<List<OwnedCard>>(
         future: _collection,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -65,13 +121,14 @@ class _CollectionScreenState extends State<CollectionScreen> {
           if (cards.isEmpty) {
             return _MessageView(
               icon: Icons.style_outlined,
-              message: 'No cards yet. Add your first card to start your collection.',
+              message:
+                  'No cards yet. Add your first card to start your collection.',
               actionLabel: 'Refresh',
               onAction: _reload,
             );
           }
-          final total = cards.every((c) => c.value != null)
-              ? cards.fold<double>(0, (sum, c) => sum + c.value!)
+          final total = cards.every((c) => c.totalValue != null)
+              ? cards.fold<double>(0, (sum, c) => sum + c.totalValue!)
               : null;
           return RefreshIndicator(
             onRefresh: _reload,
@@ -85,14 +142,14 @@ class _CollectionScreenState extends State<CollectionScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   sliver: SliverGrid.builder(
                     gridDelegate:
-                    const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 200,
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: 0.58,
-                    ),
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 200,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.58,
+                        ),
                     itemCount: cards.length,
-                    itemBuilder: (context, i) => _CardTile(card: cards[i]),
+                    itemBuilder: (context, i) => _CardTile(owned: cards[i]),
                   ),
                 ),
               ],
@@ -133,26 +190,34 @@ class _SummaryBar extends StatelessWidget {
 
   Widget _stat(String label, String value, {bool alignEnd = false}) {
     return Column(
-      crossAxisAlignment:
-      alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: const TextStyle(color: Color(0xFFBFDBF7), fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFFBFDBF7), fontSize: 12),
+        ),
         const SizedBox(height: 2),
-        Text(value,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w800)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ],
     );
   }
 }
 
 class _CardTile extends StatelessWidget {
-  const _CardTile({required this.card});
+  const _CardTile({required this.owned});
 
-  final CardItem card;
+  final OwnedCard owned;
+
+  CardItem get card => owned.card;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +232,10 @@ class _CardTile extends StatelessWidget {
         ),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x30000000), blurRadius: 8, offset: Offset(0, 4)),
+            color: Color(0x30000000),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: Container(
@@ -186,26 +254,36 @@ class _CardTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(card.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: _ink, fontSize: 15, fontWeight: FontWeight.w800)),
+            Text(
+              card.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _ink,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
                 Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: _teal,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(formatValue(card.value),
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
+                  child: Text(
+                    formatValue(card.value),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 const Spacer(),
                 const Icon(Icons.star, size: 16, color: _red),
@@ -243,7 +321,7 @@ class _CardImage extends StatelessWidget {
       url!,
       fit: BoxFit.cover,
       loadingBuilder: (context, child, progress) =>
-      progress == null ? child : placeholder,
+          progress == null ? child : placeholder,
       errorBuilder: (context, error, stack) => placeholder,
     );
   }
@@ -272,9 +350,11 @@ class _MessageView extends StatelessWidget {
           children: [
             Icon(icon, size: 48, color: _ink),
             const SizedBox(height: 12),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: _ink, fontSize: 16)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _ink, fontSize: 16),
+            ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: onAction,

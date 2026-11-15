@@ -111,6 +111,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /*
+  void _logIn() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const HomePage()));
+  }
+   */
+
   void _forgotPassword() {
     // TODO: open password reset flow.
   }

@@ -126,15 +126,19 @@ class _ProfileBody extends StatelessWidget {
 
         // Collection stats
         FutureBuilder<AggregateQuerySnapshot>(
-          future: userRef.collection('collection').count().get(),
+          future: userRef.collection('cards').aggregate(
+            count(),
+            sum('quantity')
+          ).get(),
           builder: (context, snap) {
-            final count = snap.data?.count;
+            final unique = snap.data?.count;
+            final total = snap.data?.getSum('quantity')?.toInt();
             return Card(
               child: ListTile(
                 leading: const Icon(Icons.style),
                 title: const Text('Cards in collection'),
                 trailing: Text(
-                  count?.toString() ?? '-',
+                  unique?.toString() ?? '-',
                   style: textTheme.titleLarge,
                 ),
               ),
