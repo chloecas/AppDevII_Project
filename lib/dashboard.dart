@@ -9,6 +9,7 @@ import 'package:team_project/app_drawer.dart';
 import 'carddex_api.dart';
 import 'collection.dart';
 import 'collections_crud.dart';
+import 'card_details.dart';
 
 // Palette shared with the login screen.
 const _ink = Color(0xFF14213D);
@@ -305,116 +306,7 @@ class _SetPageState extends State<SetPage> {
   }
 }
 
-// ───────────────────────── Card Details Page ─────────────────────────
-class CardDetailPage extends StatefulWidget {
-  final CardItem card;
-  const CardDetailPage({super.key, required this.card});
 
-  @override
-  State<CardDetailPage> createState() => _CardDetailPageState();
-}
-
-class _CardDetailPageState extends State<CardDetailPage> {
-  late CardItem _card = widget.card;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFull();
-  }
-
-  Future<void> _loadFull() async {
-    try {
-      final full = await _api.getCard(widget.card.id);
-      if (mounted) setState(() => _card = full);
-    } catch (e) {
-      debugPrint('getCard failed: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _addToCollection(BuildContext context) async {
-    try {
-      await CollectionsCrud.add(_card.id, purchasePrice: _card.value);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_card.name} added to your collection')),
-      );
-    } catch (e) {
-      debugPrint('add failed: $e');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not add the card. Try again.')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final card = _card;
-    final textTheme = Theme.of(context).textTheme;
-    return Scaffold(
-      appBar: AppBar(title: Text(card.name)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: Hero(
-                tag: 'card-${card.id}',
-                child: InteractiveViewer(
-                  child: _CardImage(url: card.largeImageUrl ?? card.imageUrl),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(card.name, style: textTheme.headlineSmall),
-          if (card.value != null) ...[
-            const SizedBox(height: 4),
-            Text('Market value: ${_money(card.value!)}',
-                style: textTheme.bodyMedium),
-          ],
-          if (_loading) const LinearProgressIndicator(),
-
-          Text('HP: ${card.hp ?? '-'}'),
-          if (card.rarity != null && card.rarity != 'None')
-            Text('Rarity: ${card.rarity}'),
-
-          if (card.abilities.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Abilities', style: textTheme.titleMedium),
-            for (final ab in card.abilities)
-              Text('${ab.name}: ${ab.text ?? ''}'),
-          ],
-
-          if (card.attacks.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Attacks', style: textTheme.titleMedium),
-            for (final a in card.attacks)
-              Text('${a.name}  ${a.damage ?? ''}'),
-          ],
-
-          if (card.weaknesses.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Weakness: '
-                '${card.weaknesses.map((w) => '${w.type} ${w.value}').join(', ')}'),
-          ],
-
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: () => _addToCollection(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Add to collection'),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ───────────────────────── Section Header formatting ─────────────────────────
 class _SectionHeader extends StatelessWidget {

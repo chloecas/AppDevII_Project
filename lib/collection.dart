@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:team_project/app_drawer.dart';
 
 import 'carddex_api.dart';
+import 'card_details.dart';
 
 // Palette shared with the login screen.
 const _ink = Color(0xFF14213D);
@@ -22,37 +23,46 @@ final _api = CardDexApi();
 class OwnedCard {
   OwnedCard({required this.card, required this.quantity, this.purchasePrice});
 
-  final CardItem card;          /// <- from the API
-  final int quantity;           /// <- from Firestore
-  final double? purchasePrice;  /// <- from Firestore
+  final CardItem card;
 
-  double? get totalValue =>
-      card.value == null ? null : card.value! * quantity;
+  /// <- from the API
+  final int quantity;
+
+  /// <- from Firestore
+  final double? purchasePrice;
+
+  /// <- from Firestore
+
+  double? get totalValue => card.value == null ? null : card.value! * quantity;
 
   double? get gain => (card.value == null || purchasePrice == null)
       ? null
       : (card.value! - purchasePrice!) * quantity;
 }
 
-
 Future<List<OwnedCard>> fetchCollection() async {
   final uid = FirebaseAuth.instance.currentUser!.uid;
-  final snap = await FirebaseFirestore.instance.collection('users').doc(uid).collection('cards').get();
+  final snap = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('cards')
+      .get();
 
-  final results = await Future.wait(snap.docs.map((doc) async {
-    try {
-      final data = doc.data();
-      final card = await _api.getCard(doc.id);
-      return OwnedCard(
+  final results = await Future.wait(
+    snap.docs.map((doc) async {
+      try {
+        final data = doc.data();
+        final card = await _api.getCard(doc.id);
+        return OwnedCard(
           card: card,
           quantity: (data['quantity'] as num?)?.toInt() ?? 1,
           purchasePrice: (data['purchasePrice'] as num?)?.toDouble(),
-      );
-    }
-    catch (_) {
-      return null;
-    }
-  }));
+        );
+      } catch (_) {
+        return null;
+      }
+    }),
+  );
   return results.whereType<OwnedCard>().toList();
 }
 
@@ -87,6 +97,15 @@ class _CollectionScreenState extends State<CollectionScreen> {
       'purchasePrice': purchasePrice,
       'dateAdded': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> _openDetail(OwnedCard owned) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CardDetailPage(card: owned.card)),
+    );
+    if (!mounted) return;
+    _reload();
   }
 
   @override
@@ -149,7 +168,10 @@ class _CollectionScreenState extends State<CollectionScreen> {
                           childAspectRatio: 0.58,
                         ),
                     itemCount: cards.length,
-                    itemBuilder: (context, i) => _CardTile(owned: cards[i]),
+                    itemBuilder: (context, i) => _CardTile(
+                      owned: cards[i],
+                      onTap: () => _openDetail(cards[i]),
+                    ),
                   ),
                 ),
               ],
@@ -213,83 +235,87 @@ class _SummaryBar extends StatelessWidget {
 }
 
 class _CardTile extends StatelessWidget {
-  const _CardTile({required this.owned});
+  const _CardTile({required this.owned, required this.onTap});
 
   final OwnedCard owned;
+  final VoidCallback onTap;
 
   CardItem get card => owned.card;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFE066), Color(0xFFF5A623)],
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x30000000),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: _cream,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: _CardImage(url: card.imageUrl),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              card.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _teal,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    formatValue(card.value),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                const Icon(Icons.star, size: 16, color: _red),
-              ],
+          borderRadius: BorderRadius.circular(14),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFE066), Color(0xFFF5A623)],
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x30000000),
+              blurRadius: 8,
+              offset: Offset(0, 4),
             ),
           ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _cream,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: _CardImage(url: card.imageUrl),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                card.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _teal,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      formatValue(card.value),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.star, size: 16, color: _red),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

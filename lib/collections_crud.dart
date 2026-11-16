@@ -40,4 +40,15 @@ class CollectionsCrud {
       await ref.update({'quantity': FieldValue.increment(-1)});
     }
   }
+
+  /// Deletes the card from the collection entirely.
+  static Future<void> removeAll(String cardId) => _cards().doc(cardId).delete();
+
+  /// Live view of one card's ownership document (exists = user owns it).
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> watch(String cardId) =>
+      _cards().doc(cardId).snapshots();
+
+  static Future<DocumentSnapshot<Map<String, dynamic>>> get(String cardId) =>
+      _cards().doc(cardId).get();
 }
+

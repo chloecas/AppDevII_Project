@@ -37,14 +37,38 @@ class AppDrawer extends StatelessWidget {
               ),
             ),
           ),
+
           ListTile(
             leading: Icon(Icons.home),
+            title: Text('Home'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const HomePage()),
+              );
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.person),
             title: Text('Profile'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+          ),
+
+          ListTile(
+            leading: Icon(Icons.collections),
+            title: Text('My collection'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const CollectionScreen()),
               );
             },
           ),
@@ -71,17 +95,7 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-          ListTile(
-            leading: Icon(Icons.collections),
-            title: Text('My collection'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const CollectionScreen()),
-              );
-            },
-          ),
+
           ListTile(
             leading: Icon(Icons.settings),
             title: Text('Logout'),
