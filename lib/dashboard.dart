@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -118,16 +119,25 @@ class _BrowseViewState extends State<BrowseView> {
           ),
           const SizedBox(height: 16),
 
-          IconButton(
-            tooltip: 'Search',
-            icon: const Icon(Icons.search),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SearchPage()),
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Search by set or card name...',
+                style: TextStyle(fontSize: 15),
+              ),
+              IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SearchPage()),
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(height:16),
+          const SizedBox(height: 16),
           _SectionHeader(
             'Browse by set',
             trailing: TextButton(
@@ -139,7 +149,12 @@ class _BrowseViewState extends State<BrowseView> {
                   MaterialPageRoute(builder: (_) => AllSetsPage(sets: sets)),
                 );
               },
-              child: const Text('See all'),
+              child: Row(
+                children: [
+                  Icon(Icons.view_carousel, size: 30),
+                  Text('See All', style: TextStyle(fontSize: 15)),
+                ],
+              ),
             ),
           ),
           SizedBox(
@@ -254,13 +269,44 @@ class _SetPageState extends State<SetPage> {
     }
   }
 
+  final _random = Random();
+
+  void _ripPack() {
+    if (_cards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cards are still loading, try again soon')),
+      );
+      return;
+    }
+
+    final card = _cards[_random.nextInt(_cards.length)];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PackRipDialog(
+          imageUrl: card.imageUrl!,
+          onRipAgain: _ripPack)
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final firstLoad = _cards.isEmpty && _loading;
     final firstError = _cards.isEmpty && _error != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.set.name)),
+      appBar: AppBar(
+        title: Text(widget.set.name),
+        centerTitle: true,
+        actions: <Widget>[
+          ElevatedButton.icon(
+            onPressed: _ripPack,
+            icon: Icon(Icons.cut, size: 30, color: _teal),
+            label: Text('Rip Pack!', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
       body: firstLoad
           ? const Center(child: CircularProgressIndicator())
           : firstError
@@ -306,7 +352,142 @@ class _SetPageState extends State<SetPage> {
   }
 }
 
+// ───────────────────────── Ripping Packs Screen ─────────────────────────
 
+class _PackRipDialog extends StatefulWidget {
+  final String imageUrl;
+  final VoidCallback onRipAgain;
+
+  const _PackRipDialog({required this.imageUrl, required this.onRipAgain});
+
+  @override
+  State<_PackRipDialog> createState() => _PackRipDialogState();
+}
+
+class _PackRipDialogState extends State<_PackRipDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  bool _revealed = false;
+  bool _precached = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..forward();
+
+    _ctrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() => _revealed = true);
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_precached) {
+      _precached = true;
+      precacheImage(NetworkImage(widget.imageUrl), context);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Widget _buildPack() {
+    return AnimatedBuilder(
+      key: const ValueKey('pack'),
+      animation: _ctrl,
+      builder: (_, child) {
+        final t = Curves.easeIn.transform(_ctrl.value);
+        final angle = sin(t * pi * 16) * 0.15 * t;
+        final scale = 1 + 0.2 * t;
+        return Transform.rotate(
+          angle: angle,
+          child: Transform.scale(scale: scale, child: child),
+        );
+      },
+      child: Container(
+        width: 180,
+        height: 260,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.blue, Colors.blueAccent],
+          ),
+          boxShadow: const [BoxShadow(blurRadius: 16, color: Colors.black45)],
+        ),
+        child: const Icon(Icons.style, size: 80, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildCard() {
+    return Column(
+      key: const ValueKey('card'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(widget.imageUrl, fit: BoxFit.contain),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onRipAgain();
+              },
+              icon: const Icon(Icons.cut),
+              label: const Text('Rip Again!', style: TextStyle(color: Colors.black),),
+            ),
+
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: Icon(Icons.close),
+              label: const Text('Close', style: TextStyle(color: Colors.black),),
+            ),
+
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+            onPressed: () {},
+              icon: Icon(Icons.add),
+              label: const Text('Add to Collection', style: TextStyle(color: Colors.black),),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        switchInCurve: Curves.easeOutBack,
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(scale: anim, child: child),
+        ),
+        child: _revealed ? _buildCard() : _buildPack(),
+      ),
+    );
+  }
+}
 
 // ───────────────────────── Section Header formatting ─────────────────────────
 class _SectionHeader extends StatelessWidget {
@@ -578,7 +759,8 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final hasQuery = _controller.text.trim().length >= 2;
-    final empty = hasQuery &&
+    final empty =
+        hasQuery &&
         !_loading &&
         _error == null &&
         _setResults.isEmpty &&
@@ -596,12 +778,12 @@ class _SearchPageState extends State<SearchPage> {
             suffixIcon: _controller.text.isEmpty
                 ? null
                 : IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () {
-                _controller.clear();
-                _onChanged('');
-              },
-            ),
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _controller.clear();
+                      _onChanged('');
+                    },
+                  ),
           ),
           onChanged: (t) {
             setState(() {}); // refresh the clear button
@@ -649,10 +831,12 @@ class _SearchPageState extends State<SearchPage> {
                   child: _CardImage(url: c.imageUrl),
                 ),
                 title: Text(c.name),
-                subtitle: Text([
-                  if (c.setName != null) c.setName!,
-                  if (c.number != null) '#${c.number}',
-                ].join(' · ')),
+                subtitle: Text(
+                  [
+                    if (c.setName != null) c.setName!,
+                    if (c.number != null) '#${c.number}',
+                  ].join(' · '),
+                ),
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => CardDetailPage(card: c)),

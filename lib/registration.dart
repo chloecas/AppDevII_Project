@@ -120,15 +120,35 @@ class _RegistrationState extends State<Registration> {
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: TextFormField(
+                    obscureText: true,
                     /* validator: MultiValidator([
                           RequiredValidator(errorText: 'Enter mobile number'),
                           PatternValidator(r'(^[0,9]{10}$)',
                               errorText: 'enter vaid mobile number'),
                         ]),*/
                     decoration: InputDecoration(
-                      hintText: '5145553434',
-                      labelText: 'Phone Number',
-                      prefixIcon: Icon(Icons.phone, color: _red),
+                      labelText: 'Password',
+                      prefixIcon: Icon(Icons.lock, color: _red),
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.red),
+                        borderRadius: BorderRadius.all(Radius.circular(9)),
+                      ),
+                    ),
+                  ),
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextFormField(
+                    obscureText: true,
+                    /* validator: MultiValidator([
+                          RequiredValidator(errorText: 'Enter mobile number'),
+                          PatternValidator(r'(^[0,9]{10}$)',
+                              errorText: 'enter vaid mobile number'),
+                        ]),*/
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      prefixIcon: Icon(Icons.check, color: _red),
                       border: OutlineInputBorder(
                         borderSide: BorderSide(color: Colors.red),
                         borderRadius: BorderRadius.all(Radius.circular(9)),
