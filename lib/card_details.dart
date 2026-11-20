@@ -45,6 +45,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
     super.initState();
     _loadFull();
     _loadOwnership();
+    CollectionsCrud.loadBalance();
   }
 
   Future<void> _loadOwnership() async {
@@ -94,18 +95,23 @@ class _CardDetailPageState extends State<CardDetailPage> {
       if (success != null) _snack(success);
     } catch (e) {
       debugPrint('$error: $e');
-      _snack(error);
+      _snack(e is BalanceException ? e.message : error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _confirmRemoveAll() async {
+    final price = _card.value;
+    if (price == null) return;
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove card?'),
-        content: Text('Remove all copies of ${_card.name}?'),
+        title: const Text('Sell all?'),
+        content: Text(
+          'Sell all copies of ${_card.name} for ${_money(price * _qty)}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -113,15 +119,16 @@ class _CardDetailPageState extends State<CardDetailPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
+            child: const Text('Sell all'),
           ),
         ],
       ),
     );
     if (ok == true) {
       await _run(
-        () => CollectionsCrud.removeAll(_card.id),
-        error: 'Could not remove the card.',
+            () => CollectionsCrud.sell(_card.id, price, all: true),
+        success: 'Sold ${_card.name}',
+        error: 'Could not sell the card.',
       );
     }
   }
@@ -195,6 +202,15 @@ class _CardDetailPageState extends State<CardDetailPage> {
           ],
           const SizedBox(height: 24),
 
+          ValueListenableBuilder<double?>(
+            valueListenable: CollectionsCrud.balance,
+            builder: (_, bal, __) => Text(
+              'Balance: ${_money(bal)}',
+              style: const TextStyle(color: _ink, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 8),
+
           // Changes depending on whether the user owns this card.
           if (!_ownershipLoaded)
             const Center(child: CircularProgressIndicator())
@@ -208,16 +224,19 @@ class _CardDetailPageState extends State<CardDetailPage> {
   }
 
   Widget _addButton() {
+    final price = _card.value;
     return FilledButton.icon(
-      onPressed: _busy
+      onPressed: (_busy || price == null)
           ? null
           : () => _run(
-              () => CollectionsCrud.add(_card.id, purchasePrice: _card.value),
-              success: '${_card.name} added to your collection',
-              error: 'Could not add the card.',
-            ),
-      icon: const Icon(Icons.add),
-      label: const Text('Add to collection'),
+            () => CollectionsCrud.buy(_card.id, price),
+        success: 'Bought ${_card.name}',
+        error: 'Could not buy the card.',
+      ),
+      icon: const Icon(Icons.shopping_cart),
+      label: Text(
+        price == null ? 'No price available' : 'Buy for ${_money(price)}',
+      ),
       style: FilledButton.styleFrom(
         backgroundColor: _ink,
         minimumSize: const Size.fromHeight(48),
@@ -252,12 +271,12 @@ class _CardDetailPageState extends State<CardDetailPage> {
               Row(
                 children: [
                   IconButton.filledTonal(
-                    onPressed: _busy
+                    onPressed: (_busy || price == null)
                         ? null
                         : () => _run(
-                            () => CollectionsCrud.removeOne(_card.id),
-                            error: 'Could not update the quantity.',
-                          ),
+                          () => CollectionsCrud.sell(_card.id, price),
+                      error: 'Could not sell the card.',
+                    ),
                     icon: const Icon(Icons.remove),
                   ),
                   Padding(
@@ -272,12 +291,12 @@ class _CardDetailPageState extends State<CardDetailPage> {
                     ),
                   ),
                   IconButton.filled(
-                    onPressed: _busy
+                    onPressed: (_busy || price == null)
                         ? null
                         : () => _run(
-                            () => CollectionsCrud.add(_card.id),
-                            error: 'Could not update the quantity.',
-                          ),
+                          () => CollectionsCrud.buy(_card.id, price),
+                      error: 'Could not buy the card.',
+                    ),
                     style: IconButton.styleFrom(backgroundColor: _ink),
                     icon: const Icon(Icons.add),
                   ),
@@ -300,7 +319,7 @@ class _CardDetailPageState extends State<CardDetailPage> {
         OutlinedButton.icon(
           onPressed: _busy ? null : _confirmRemoveAll,
           icon: const Icon(Icons.delete_outline),
-          label: const Text('Remove from collection'),
+          label: const Text('Sell All'),
           style: OutlinedButton.styleFrom(
             foregroundColor: _red,
             side: const BorderSide(color: _red),
