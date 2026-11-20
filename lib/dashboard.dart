@@ -68,7 +68,7 @@ class _BrowseViewState extends State<BrowseView> {
 
   void _load() {
     _sets = _api.getSets().then(_newestFirst);
-    _trending = _sets.then(_loadTrending);
+    _trending = _api.getTrending();
   }
 
   /// Sorts client-side so we don't depend on the API's ordering.
@@ -79,18 +79,7 @@ class _BrowseViewState extends State<BrowseView> {
     return sorted;
   }
 
-  /// There's no trending endpoint in the CardDex API (as far as the wrapper
-  /// shows), so this approximates it: take the two newest sets and show their
-  /// most valuable cards. Replace with Firestore "most added" counts later.
-  Future<List<CardItem>> _loadTrending(List<CardSet> sets) async {
-    final recent = sets.take(2);
-    final pages = await Future.wait(
-      recent.map((s) => _api.getSetCards(s.id, pageSize: 50)),
-    );
-    final cards = pages.expand((p) => p).where((c) => c.value != null).toList()
-      ..sort((a, b) => b.value!.compareTo(a.value!));
-    return cards.take(20).toList();
-  }
+
 
   Future<void> _refresh() async {
     setState(_load);

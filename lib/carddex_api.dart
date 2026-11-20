@@ -228,6 +228,24 @@ class CardDexApi {
     return _items(body).map(CardSet.fromJson).toList();
   }
 
+  /// GET /v1/prices/trends -> biggest recent movers
+  Future<List<CardItem>> getTrending({int limit = 10}) async {
+    final body = await _get('/v1/prices/trends');
+    debugPrint('TRENDS: $body'); // remove once it works
+
+    final ids = _items(body)
+        .take(limit)
+        .map((row) => row['card_id']?.toString())
+        .whereType<String>();
+
+    final cards = await Future.wait(
+      ids.map(
+        (id) => getCard(id).then<CardItem?>((c) => c).catchError((_) => null),
+      ),
+    );
+    return cards.whereType<CardItem>().toList();
+  }
+
   /// GET /v1/sets/{id}/cards
   Future<List<CardItem>> getSetCards(
     String setId, {
@@ -244,37 +262,32 @@ class CardDexApi {
 }
 
 String? _imageFor(Map<String, dynamic> json, {bool large = false}) {
-  final ptcg = json['ptcgio_id'];
-  if (ptcg is String && ptcg.contains('-')) {
-    final i = ptcg.indexOf('-');
-    final set = ptcg.substring(0, i);
-    final num = ptcg.substring(i + 1);
-    return 'https://images.pokemontcg.io/$set/${num}${large ? '_hires' : ''}.png';
+  final images = json['images'];
+  if (images is List && images.isNotEmpty && images.first is Map) {
+    final img = images.first as Map;
+    final url = large
+        ? (img['large_url'] ?? img['small_url'])
+        : (img['small_url'] ?? img['thumb_url']);
+    if (url is String && url.startsWith('http')) return url;
   }
-
   final direct = json['image_url'];
   if (direct is String && direct.startsWith('http')) return direct;
-
   return null;
 }
 
 /// Finds a market-style price number in whatever shape the API returns.
-double? _findValue(dynamic node) {
-  if (node is num) return node.toDouble();
-  if (node is Map) {
-    for (final key in ['market', 'average', 'avg', 'mid', 'low']) {
-      if (node[key] is num) return (node[key] as num).toDouble();
-    }
-    for (final value in node.values) {
-      final found = _findValue(value);
-      if (found != null) return found;
-    }
-  }
-  if (node is List) {
-    for (final value in node) {
-      final found = _findValue(value);
-      if (found != null) return found;
-    }
+double? _findValue(dynamic prices) {
+  if (prices is! List) return null;
+  final entries = prices.whereType<Map>().toList();
+  if (entries.isEmpty) return null;
+
+  // Prefer TCGplayer (USD) if present, otherwise use the first entry.
+  final entry = entries.firstWhere(
+    (p) => p['source'] == 'tcgplayer',
+    orElse: () => entries.first,
+  );
+  for (final key in ['market_price', 'trend_price', 'avg_price', 'low_price']) {
+    if (entry[key] is num) return (entry[key] as num).toDouble();
   }
   return null;
 }
